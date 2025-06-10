@@ -1,0 +1,33 @@
+name: Check
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Check
+    runs-on: ubuntu-24.04
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache arduino-cli
+        id: arduino-cli
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./arduino-cli
+            ~/.arduino15/
+          key: arduino-cli
+
+      - name: Setup arduino-cli
+        if: steps.arduino-cli.outputs.cache-hit != 'true'
+        run: |
+          curl -LO# https://github.com/arduino/arduino-cli/releases/download/v1.2.2/arduino-cli_1.2.2_Linux_64bit.tar.gz
+          tar -zxvf arduino-cli_1.2.2_Linux_64bit.tar.gz
+          ./arduino-cli core install arduino:avr
+
+      - name: Compile
+        run: ./arduino-cli compile -v -b arduino:avr:mega Inspector
