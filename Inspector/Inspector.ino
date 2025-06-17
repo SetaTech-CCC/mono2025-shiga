@@ -154,8 +154,15 @@ void loop() {
 
     // ステッパー制御モード
     case MODE_STEPPER_CONTROL:
-      if (isTactPressed(LS)) stepper(true);
-      if (isTactPressed(RS)) stepper(false);
+      if (isTactPressed(LS)) {
+        for (byte i = 0; i < 15; i++) {
+          stepper(true);
+        }
+      } else if (isTactPressed(RS)) {
+        for (byte i = 0; i < 15; i++) {
+          stepper(false);
+        }
+      }
       // 可変抵抗器モードへ
       if (!toggle) {
         // LED 消灯

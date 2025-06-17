@@ -26,16 +26,22 @@
  *   3°ずつ動く。
  *   引数なしでは時計回りに動く。
  *   引数の reverse を true にすると、反時計回りに動く。
+ *   DC モーターとの両立はできない。
  * 
  * ・dc(action)
  *   DCモーターを制御する。
  *   引数には、RT(Right Turn：右回り)、LT(Left Turn：左回り)、S(Stop：即停止)、F(Free：減速)がある。
  *   引数の文字にダブルクォーテーションは不要。
+ *   ステッピングモーターとの両立はできない。
  * 
- * ・led(color)
+ * ・led(color, low)
  *   LED制御関数。引数に入れた色を点灯する。
  *   R(赤)、G(緑)、B(青)、W(白)、C(水)、Y(黄)、M(紫)、K(消灯)。
  *   引数の文字にダブルクォーテーションは不要。
+ *   low は、LED の明るさを調整する。
+ *   true を入れると暗くなるが、for や while で回す必要がある。
+ *   0.2 秒微点灯したい場合、200(0.2秒) / 10ms(1回の処理時間) = 20 回回す必要がある。
+ *   LED 微点灯の処理中、ブザー、DCモーター以外の処理はできない。
  * 
  * ・buzz(tone_type, duration)
  *   ブザー鳴動関数。
@@ -61,6 +67,9 @@
  * 
  * ・isToggleEnabled()
  *   トグルスイッチが上向きの状態なら true を返す。
+ *
+ * ・isTogglePulled()
+ *   トグルスイッチが上向きになった一瞬のみ true を返す。
  * 
  * ・isTactEnabled(side)
  *   タクトスイッチが押され続けている間は true を返す。
@@ -212,6 +221,8 @@ void stepper(boolean reverse = false) {
   ren(DC_MOTOR_2_PIN, LOW);
   // 同期
   clock_reset();
+  // 遅延
+  delay(5);
 }
 
 /*************
@@ -274,32 +285,21 @@ void set_led(byte r_val = LOW, byte g_val = LOW, byte b_val = LOW) {
 enum LedColor { R, G, B, W, C, Y, M, K };
 
 // LED制御関数
-inline void led(LedColor color) {
+inline void led(LedColor color = K, boolean low = false) {
   switch (color) {
-    case R:
-      set_led(HIGH, LOW, LOW);
-      break;
-    case G:
-      set_led(LOW, HIGH, LOW);
-      break;
-    case B:
-      set_led(LOW, LOW, HIGH);
-      break;
-    case W:
-      set_led(HIGH, HIGH, HIGH);
-      break;
-    case C:
-      set_led(LOW, HIGH, HIGH);
-      break;
-    case Y:
-      set_led(HIGH, HIGH, LOW);
-      break;
-    case M:
-      set_led(HIGH, LOW, HIGH);
-      break;
-    case K:
-      set_led(LOW, LOW, LOW);
-      break;
+    case R: set_led(HIGH, LOW, LOW); break;
+    case G: set_led(LOW, HIGH, LOW); break;
+    case B: set_led(LOW, LOW, HIGH); break;
+    case W: set_led(HIGH, HIGH, HIGH); break;
+    case C: set_led(LOW, HIGH, HIGH); break;
+    case Y: set_led(HIGH, HIGH, LOW); break;
+    case M: set_led(HIGH, LOW, HIGH); break;
+    case K: set_led(LOW, LOW, LOW); break;
+  }
+  if (low) {
+    delay(1);
+    set_led(LOW, LOW, LOW);
+    delay(9);
   }
 }
 
@@ -308,8 +308,8 @@ inline void led(LedColor color) {
  **********/
 
 // ブザー鳴動
-const uint16_t BEEP_LOW_FREQ = 500;    // 低音の周波数
-const uint16_t BEEP_MID_FREQ = 850;    // 中音の周波数
+const uint16_t BEEP_LOW_FREQ = 400;    // 低音の周波数
+const uint16_t BEEP_MID_FREQ = 800;    // 中音の周波数
 const uint16_t BEEP_HIGH_FREQ = 1200;  // 高音の周波数
 
 // ブザーの音の種類を定義する列挙型
@@ -484,6 +484,30 @@ inline boolean isToggleEnabled() {
   return digitalRead(TOGGLE_SWITCH_PIN) == HIGH;
 }
 
+// タクト・トグルチャタリング防止遅延 (マイクロ秒)
+const byte CHATTER_DEBOUNCE_US = 60;
+// トグルスイッチが上げられた時に true
+boolean isTogglePulled() {
+  // トグルの状態保持用
+  static boolean toggle = true;
+  // チャタリング防止
+  delayMicroseconds(CHATTER_DEBOUNCE_US);
+  boolean currently_enabled = isToggleEnabled();
+  // トグルの状態を参照し更新
+  if (currently_enabled && toggle) {
+    // 上げられたので状態を更新
+    toggle = false;
+    return true;
+  } else if (!currently_enabled) {
+    // 下げられたので状態をリセット
+    toggle = true;
+    return false;
+  } else {
+    // 上げられているが無視
+    return false;
+  }
+}
+
 /*****************
  * タクトスイッチ *
  *****************/
@@ -496,8 +520,6 @@ boolean isTactEnabled(TactSwitch side) {
   return digitalRead((side == LS) ? TACT_SWITCH_LEFT_PIN : TACT_SWITCH_RIGHT_PIN) == LOW;
 }
 
-// タクトチャタリング防止遅延 (マイクロ秒)
-const byte CHATTER_DEBOUNCE_US = 60;
 // 指定された側のタクトスイッチが１回押された時に true
 boolean isTactPressed(TactSwitch side) {
   // スイッチの状態保持用 (L, R に対応)
