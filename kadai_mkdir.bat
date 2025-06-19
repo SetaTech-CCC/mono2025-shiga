@@ -26,5 +26,6 @@ attrib +h temp.c > nul
 attrib +h kadai_mkdir.bat > nul
 
 start explorer "%~dp0"
+start Inspector\Inspector.ino
 echo;
 timeout /t 3 /nobreak
