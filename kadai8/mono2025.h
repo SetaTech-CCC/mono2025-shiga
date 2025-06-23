@@ -1,0 +1,218 @@
+/*
+  Copyright 2025 Syuugo
+  
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+      http://www.apache.org/licenses/LICENSE-2.0
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+ */
+
+#ifndef MONO2025_H
+#define MONO2025_H
+
+/***********
+ * 制御ピン *
+ ***********/
+
+// LED (RGB)
+const byte LED_RED_PIN = 37;
+const byte LED_GREEN_PIN = 39;
+const byte LED_BLUE_PIN = 38;
+// 7セグ
+const byte SEG_LEFT_PIN = 43;
+const byte SEG_RIGHT_PIN = 42;
+// 書き込みピン
+const byte PIN_WRITE[] = { LED_RED_PIN, LED_GREEN_PIN, LED_BLUE_PIN, SEG_LEFT_PIN, SEG_RIGHT_PIN };
+
+// トグルスイッチ
+const byte TOGGLE_SWITCH_PIN = 11;
+// タクトスイッチ
+const byte TACT_SWITCH_LEFT_PIN = 13;
+const byte TACT_SWITCH_RIGHT_PIN = 12;
+// 読み込みピン
+const byte PIN_READ[] = { TOGGLE_SWITCH_PIN, TACT_SWITCH_LEFT_PIN, TACT_SWITCH_RIGHT_PIN };
+
+/***********
+ * 補助関数 *
+ ***********/
+
+// デジタルピンに書き込み
+inline void ren(byte pin, byte level) {
+  digitalWrite(pin, level);
+}
+
+// 初回遅延（秒）：処理の重複を防ぐため
+const byte DELAY_FIRST_S = 2;
+
+// 秒数計算
+inline float secs() {
+  return millis() / 1000.0f - DELAY_FIRST_S;
+}
+
+// 秒単位で遅延
+void delaySecs(float secs_val) {
+  delay((word)(secs_val * 1000.0f));
+}
+
+/***************
+ * 処理ここから *
+ ***************/
+
+/***********
+ * LED制御 *
+ ***********/
+
+// LED の色設定
+void set_led(byte r_val = LOW, byte g_val = LOW, byte b_val = LOW) {
+  // 赤
+  ren(LED_RED_PIN, r_val);
+  // 緑
+  ren(LED_GREEN_PIN, g_val);
+  // 青
+  ren(LED_BLUE_PIN, b_val);
+}
+
+// 各色に対応する列挙型
+enum LedColor { R, G, B, W, C, Y, M, K };
+
+// LED制御関数
+inline void led(LedColor color = K, boolean low = false) {
+  switch (color) {
+    case R: set_led(HIGH, LOW, LOW); break;
+    case G: set_led(LOW, HIGH, LOW); break;
+    case B: set_led(LOW, LOW, HIGH); break;
+    case W: set_led(HIGH, HIGH, HIGH); break;
+    case C: set_led(LOW, HIGH, HIGH); break;
+    case Y: set_led(HIGH, HIGH, LOW); break;
+    case M: set_led(HIGH, LOW, HIGH); break;
+    case K: set_led(LOW, LOW, LOW); break;
+  }
+  if (low) {
+    set_led(LOW, LOW, LOW);
+  }
+}
+
+/*********
+ * 7セグ *
+ *********/
+
+// セグの表示データ
+const byte SEG_A0 = B00000000;  // 消灯
+const byte SEG_C1 = B00000010;  // 中央上
+const byte SEG_R1 = B00000100;  // 右上
+const byte SEG_R2 = B00001000;  // 右下
+const byte SEG_C3 = B00010000;  // 中央下
+const byte SEG_L2 = B00100000;  // 左下
+const byte SEG_L1 = B01000000;  // 左上
+const byte SEG_C2 = B10000000;  // 中央真ん中
+
+// int で直接できるように数字のみの配列を用意
+const byte num[] = {
+  /* 0 */ SEG_L1 + SEG_L2 + SEG_C1 + SEG_C3 + SEG_R1 + SEG_R2,
+  /* 1 */ SEG_R1 + SEG_R2,
+  /* 2 */ SEG_L2 + SEG_C1 + SEG_C2 + SEG_C3 + SEG_R1,
+  /* 3 */ SEG_C1 + SEG_C2 + SEG_C3 + SEG_R1 + SEG_R2,
+  /* 4 */ SEG_L1 + SEG_C2 + SEG_R1 + SEG_R2,
+  /* 5 */ SEG_L1 + SEG_C1 + SEG_C2 + SEG_C3 + SEG_R2,
+  /* 6 */ SEG_L1 + SEG_L2 + SEG_C1 + SEG_C2 + SEG_C3 + SEG_R2,
+  /* 7 */ SEG_L1 + SEG_C1 + SEG_R1 + SEG_R2,
+  /* 8 */ SEG_L1 + SEG_L2 + SEG_C1 + SEG_C2 + SEG_C3 + SEG_R1 + SEG_R2,
+  /* 9 */ SEG_L1 + SEG_C1 + SEG_C2 + SEG_C3 + SEG_R1 + SEG_R2
+};
+
+// セグメント切り替え遅延 (マイクロ秒)
+const byte SEGMENT_SWITCH_DELAY_US = 30;
+// セグメント実行
+void seg(byte left_data = SEG_A0, byte right_data = SEG_A0, byte point_left = LOW, byte point_right = LOW) {
+  // 左側のセグの内容
+  PORTA = left_data;
+  // 左側のセグの右下のドット
+  PORTC = point_left ? (byte)B10000000 : (byte)B00000000;
+  // 左側のセグを点灯
+  ren(SEG_LEFT_PIN, HIGH);
+  // 左側のセグを即消灯
+  ren(SEG_LEFT_PIN, LOW);
+  // 表示の競合を避けるために一旦遅延
+  delayMicroseconds(SEGMENT_SWITCH_DELAY_US);
+  // 右側のセグの内容
+  PORTA = right_data;
+  // 右側のセグの右下のドット
+  PORTC = point_right ? (byte)B10000000 : (byte)B00000000;
+  // 右側のセグを点灯
+  ren(SEG_RIGHT_PIN, HIGH);
+  // 右側のセグを即消灯
+  ren(SEG_RIGHT_PIN, LOW);
+}
+
+/*****************
+ * トグルスイッチ *
+ *****************/
+
+// トグルスイッチが奥側の時は true
+inline boolean isToggleEnabled() {
+  return digitalRead(TOGGLE_SWITCH_PIN) == HIGH;
+}
+
+/*****************
+ * タクトスイッチ *
+ *****************/
+
+// タクトスイッチの左右を識別する列挙型
+enum TactSwitch { LS, RS };
+
+// 指定された側のタクトスイッチが押され続けている時は true
+boolean isTactEnabled(TactSwitch side) {
+  return digitalRead((side == LS) ? TACT_SWITCH_LEFT_PIN : TACT_SWITCH_RIGHT_PIN) == LOW;
+}
+
+// タクトチャタリング防止遅延 (マイクロ秒)
+const byte CHATTER_DEBOUNCE_US = 60;
+// 指定された側のタクトスイッチが１回押された時に true
+boolean isTactPressed(TactSwitch side) {
+  // スイッチの状態保持用 (L, R に対応)
+  static boolean tact_pressed_state[2] = {true, true};
+  // チャタリング防止
+  delayMicroseconds(CHATTER_DEBOUNCE_US);
+  boolean currently_enabled = isTactEnabled(side);
+  // 指定されたスイッチの状態を参照し更新
+  if (currently_enabled && tact_pressed_state[side]) {
+    // 押されたので状態を更新
+    tact_pressed_state[side] = false;
+    return true;
+  } else if (!currently_enabled) {
+    // 離されたので状態をリセット
+    tact_pressed_state[side] = true;
+    return false;
+  } else {
+    // 押され続けているが無視
+    return false;
+  }
+}
+
+/***********
+ * 実行準備 *
+ ***********/
+
+// 任意初期化
+void initialize(void);
+
+// 初期化
+void setup() {
+  // 出力ピンの割り当て
+  for (byte i = 0; i < sizeof(PIN_WRITE) / sizeof(PIN_WRITE[0]); i++) {
+    pinMode(PIN_WRITE[i], OUTPUT);
+  }
+  // 入力ピンの割り当て
+  for (byte i = 0; i < sizeof(PIN_READ) / sizeof(PIN_READ[0]); i++) {
+    pinMode(PIN_READ[i], INPUT);
+  }
+  // 初期遅延
+  delaySecs(DELAY_FIRST_S);
+}
+
+#endif // MONO2025_H

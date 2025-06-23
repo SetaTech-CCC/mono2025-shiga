@@ -82,7 +82,7 @@
  * 
  * ・getPot()
  *   可変抵抗器の値を、0～1023 で返す。
- *   
+ * 
  */
 
 #ifndef MONO2025_H
@@ -215,7 +215,7 @@ void stepper(boolean reverse = false) {
       stepper_flag = 0;
       break;
   }
-  
+
   // DC モーターの暴走を阻止
   ren(DC_MOTOR_1_PIN, LOW);
   ren(DC_MOTOR_2_PIN, LOW);
@@ -453,7 +453,7 @@ boolean isPhotoPassed(byte rotation = 1) {
   else if (!currently_enabled) {
     // 状態を未検知にリセット
     photo_state = false;
-  }  
+  }
   // 1回通過を検知した場合のみ回数判断へ
   if (!one_rotate) {
     return false;

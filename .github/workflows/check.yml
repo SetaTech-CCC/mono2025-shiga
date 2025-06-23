@@ -30,4 +30,7 @@ jobs:
           ./arduino-cli core install arduino:avr
 
       - name: Compile
-        run: ./arduino-cli compile -v -b arduino:avr:mega Inspector
+        run: |
+          for project in Inspector kadai1 kadai2 kadai3 kadai4 kadai5 kadai6 kadai7 kadai8; do
+           ./arduino-cli compile -v -b arduino:avr:mega $project
+          done
